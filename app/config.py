@@ -20,6 +20,25 @@ class ConfigError(Exception):
     pass
 
 
+def _thread_id(value: str | None, source: str) -> int | None:
+    """Parse a Telegram forum topic id (message_thread_id)."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    if not value.isdigit() or int(value) <= 0:
+        raise ConfigError(f"{source}: topic id must be a positive integer, got {value!r}")
+    return int(value)
+
+
+def _telegram_chat_ids(value: str | None) -> list[str]:
+    """Split TELEGRAM_CHAT_ID entries; each may be 'chat_id' or 'chat_id:topic_id'."""
+    entries = split_list(value)
+    for entry in entries:
+        if ":" in entry:
+            _thread_id(entry.rpartition(":")[2], f"TELEGRAM_CHAT_ID entry {entry!r}")
+    return entries
+
+
 @dataclass
 class Instance:
     id: str
@@ -65,6 +84,7 @@ class Config:
     telegram_bot_token: str | None = None
     telegram_chat_ids: list[str] = field(default_factory=list)
     telegram_startup_message: bool = True
+    telegram_thread_id: int | None = None
 
 
 def split_list(value: str | None) -> list[str]:
@@ -159,6 +179,7 @@ def load_config(env: dict[str, str] | None = None) -> Config:
         http_timeout=float(env.get("HTTP_TIMEOUT") or 15),
         dry_run=_bool(env.get("DRY_RUN"), False),
         telegram_bot_token=_secret(env, "TELEGRAM_BOT_TOKEN"),
-        telegram_chat_ids=split_list(env.get("TELEGRAM_CHAT_ID")),
+        telegram_chat_ids=_telegram_chat_ids(env.get("TELEGRAM_CHAT_ID")),
+        telegram_thread_id=_thread_id(env.get("TELEGRAM_THREAD_ID"), "TELEGRAM_THREAD_ID"),
         telegram_startup_message=_bool(env.get("TELEGRAM_STARTUP_MESSAGE"), True),
     )

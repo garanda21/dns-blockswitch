@@ -175,6 +175,48 @@ TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
 TELEGRAM_CHAT_ID=123456789        # varios separados por ';'
 ```
 
+#### Enviar a un tema de un grupo (opcional)
+
+Si tu grupo de Telegram tiene **Temas** activados, por defecto los mensajes llegan al tema "General". Puedes hacer que lleguen directamente a un tema concreto.
+
+`TELEGRAM_CHAT_ID` es **siempre obligatorio** (indica el grupo). El tema se indica de **una** de estas dos formas, no hace falta usar las dos:
+
+**Opción A: variable `TELEGRAM_THREAD_ID`.** Recomendada si tienes un solo grupo.
+
+```env
+TELEGRAM_CHAT_ID=-1001234567890
+TELEGRAM_THREAD_ID=42
+```
+
+**Opción B: `chat_id:tema` dentro de `TELEGRAM_CHAT_ID`.** Útil con varios chats, cada uno con su tema.
+
+```env
+TELEGRAM_CHAT_ID=-1001234567890:42
+```
+
+Las dos opciones anteriores hacen exactamente lo mismo. Ejemplo con varios destinos:
+
+```env
+TELEGRAM_CHAT_ID=-1001111111111:42;-1002222222222;123456789
+TELEGRAM_THREAD_ID=7
+```
+
+| Destino | Llega a |
+|---|---|
+| `-1001111111111:42` | tema 42 (el `:tema` del chat tiene prioridad) |
+| `-1002222222222` | tema 7 (valor de `TELEGRAM_THREAD_ID`) |
+| `123456789` | también recibe el tema 7, que en un chat privado no tiene sentido y puede hacer fallar el envío |
+
+Por eso, si mezclas grupos con chats privados, usa solo la opción B.
+
+Sin ninguna de las dos opciones, todo funciona como antes (tema "General" o chat privado).
+
+**Cómo obtener los ids:**
+
+- **Id del tema:** en el tema, mantén pulsado cualquier mensaje → *Copiar enlace*. Obtendrás algo como `https://t.me/c/1234567890/42/100`: el número del medio (`42`) es el tema. En Telegram Web, al abrir el tema la URL termina en `#-1001234567890_42`.
+- **Id del grupo:** es el número del enlace anterior con `-100` delante (`-1001234567890`). También aparece en `https://api.telegram.org/bot<TOKEN>/getUpdates` tras escribir en el grupo.
+- El bot debe ser miembro del grupo y poder escribir en ese tema. Si el tema no existe, Telegram responde `message thread not found` y el error aparece en el log.
+
 Prueba la conexión con `docker compose exec dns-blockswitch python -m app test-telegram`.
 
 Se envía un mensaje:
@@ -217,7 +259,8 @@ El bootstrap solo sirve para resolver el nombre de los upstream (por ejemplo, `d
 | `PIHOLE_<n>_NAME` | host de la URL | Nombre en las notificaciones |
 | `ADGUARD_<n>_VERIFY_SSL` / `PIHOLE_<n>_VERIFY_SSL` | `true` | `false` para aceptar certificados autofirmados con `https://` |
 | `TELEGRAM_BOT_TOKEN` | — | Token del bot (admite `_FILE`) |
-| `TELEGRAM_CHAT_ID` | — | Chat id(s) separados por `;` |
+| `TELEGRAM_CHAT_ID` | — | Chat id(s) separados por `;`. Admite `chat_id:tema` para enviar a un tema del grupo |
+| `TELEGRAM_THREAD_ID` | — | Id del tema (`message_thread_id`) al que enviar en grupos con temas |
 | `TELEGRAM_STARTUP_MESSAGE` | `true` | Enviar el resumen "operativo" al arrancar. Los errores de conexión se avisan siempre |
 | `CRON_SCHEDULES` | `*/30 * * * *` | Crons separados por `;` |
 | `RUN_ON_START` | `true` | Comprobar al arrancar el contenedor |

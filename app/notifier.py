@@ -93,10 +93,19 @@ def build_check_message(ok: list[str], failed: list[tuple[str, str]], dry_run: b
 
 
 class TelegramNotifier:
-    def __init__(self, token: str | None, chat_ids: list[str], timeout: float = 15.0):
+    def __init__(self, token: str | None, chat_ids: list[str], timeout: float = 15.0,
+                 thread_id: int | None = None):
+        """chat_ids entries may be 'chat_id' or 'chat_id:topic_id'; thread_id is the default topic."""
         self.token = token
         self.chat_ids = chat_ids
         self.timeout = timeout
+        self.thread_id = thread_id
+
+    def _target(self, entry: str) -> tuple[str, int | None]:
+        chat_id, sep, topic = entry.rpartition(":")
+        if sep:
+            return chat_id, int(topic)
+        return entry, self.thread_id
 
     @property
     def enabled(self) -> bool:
@@ -106,16 +115,21 @@ class TelegramNotifier:
         if not self.enabled:
             return
         url = f"https://api.telegram.org/bot{self.token}/sendMessage"
-        for chat_id in self.chat_ids:
+        for entry in self.chat_ids:
+            chat_id, thread_id = self._target(entry)
+            payload = {
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            }
+            if thread_id is not None:
+                # Forum supergroups: deliver to this topic instead of "General".
+                payload["message_thread_id"] = thread_id
             try:
-                resp = requests.post(url, timeout=self.timeout, json={
-                    "chat_id": chat_id,
-                    "text": text,
-                    "parse_mode": "HTML",
-                    "disable_web_page_preview": True,
-                })
+                resp = requests.post(url, timeout=self.timeout, json=payload)
                 if resp.status_code >= 400:
-                    log.error("Telegram send to %s failed: HTTP %s %s", chat_id, resp.status_code, resp.text[:200])
+                    log.error("Telegram send to %s failed: HTTP %s %s", entry, resp.status_code, resp.text[:200])
             except requests.RequestException as exc:
                 # Never leak the token: only log the exception type.
-                log.error("Telegram send to %s failed: %s", chat_id, type(exc).__name__)
+                log.error("Telegram send to %s failed: %s", entry, type(exc).__name__)
