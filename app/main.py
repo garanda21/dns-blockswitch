@@ -285,7 +285,8 @@ def loop(cfg: Config, store: BackupStore) -> None:
 
 
 def make_notifier(cfg: Config) -> TelegramNotifier:
-    return TelegramNotifier(cfg.telegram_bot_token, cfg.telegram_chat_ids, cfg.http_timeout)
+    return TelegramNotifier(cfg.telegram_bot_token, cfg.telegram_chat_ids, cfg.http_timeout,
+                            cfg.telegram_thread_id)
 
 
 def status_cmd(cfg: Config, store: BackupStore) -> int:

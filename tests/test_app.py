@@ -438,3 +438,29 @@ def test_startup_message_includes_schedule():
     msg = build_check_message(["NAS"], [], False, ["0 */4 * * 1-5", "0 */2 * * 6,0"])
     assert "Comprobaré los bloqueos" in msg and "de lunes a viernes" in msg and "Próxima comprobación" in msg
     assert "Comprobaré" not in build_check_message([], [("NAS", "err")], False, ["*/30 * * * *"])
+
+
+@responses.activate
+def test_telegram_topic_ids(tmp_path):
+    import json
+
+    from app.notifier import TelegramNotifier
+
+    cfg = load_config(env(tmp_path, TELEGRAM_BOT_TOKEN="T", TELEGRAM_THREAD_ID="7",
+                          TELEGRAM_CHAT_ID="-1001234567890:42;111;@canal"))
+    assert cfg.telegram_thread_id == 7
+    tg = responses.add(responses.POST, "https://api.telegram.org/botT/sendMessage", json={"ok": True})
+    m.make_notifier(cfg).send("hola")
+    bodies = [json.loads(c.request.body) for c in tg.calls]
+    assert [(b["chat_id"], b.get("message_thread_id")) for b in bodies] == [
+        ("-1001234567890", 42), ("111", 7), ("@canal", 7)]
+
+    TelegramNotifier("T", ["111"]).send("hola")
+    assert "message_thread_id" not in json.loads(tg.calls[-1].request.body)
+
+
+@pytest.mark.parametrize("extra", [{"TELEGRAM_THREAD_ID": "abc"}, {"TELEGRAM_CHAT_ID": "-100123:x"},
+                                   {"TELEGRAM_THREAD_ID": "0"}])
+def test_telegram_topic_id_validation(tmp_path, extra):
+    with pytest.raises(ConfigError):
+        load_config(env(tmp_path, **extra))
